@@ -1,0 +1,9 @@
+[package]
+name = "fa18n"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+faml = "0.1.11"
+regex = "1.12.2"
