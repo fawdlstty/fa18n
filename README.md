@@ -10,7 +10,7 @@ Steps:
 
 ```toml
 [build-dependencies]
-fa18n = 0.1.0
+fa18n = "0.1.0"
 ```
 
 2. Create i18n resources:
