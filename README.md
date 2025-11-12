@@ -1,5 +1,8 @@
 # fa18n
 
+[![version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Ffawdlstty%2Ffa18n%2Fmain%2Ffa18n%2FCargo.toml&query=package.version&label=version)](https://crates.io/crates/fa18n)
+![status](https://img.shields.io/github/actions/workflow/status/fawdlstty/fa18n/rust.yml)
+
 Modern i18n support library base on faml
 
 ## Manual
