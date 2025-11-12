@@ -2,8 +2,20 @@
 name = "fa18n"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.90"
+license = "MIT"
+repository = "https://github.com/fawdlstty/fa18n"
+homepage = "https://github.com/fawdlstty/fa18n"
+description = "Modern i18n support library base on faml"
+authors = ["fawdlstty<f@fawdlstty.com>"]
+keywords = ["faml", "i18n", "l10n"]
+categories = []
+readme = "README.md"
+publish = true
 
 [dependencies]
 anyhow = "1.0.100"
 faml = "0.1.11"
 regex = "1.12.2"
+
+# cargo publish --allow-dirty --registry crates-io

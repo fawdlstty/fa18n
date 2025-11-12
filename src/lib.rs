@@ -18,11 +18,15 @@ fn get_subfiles(path: impl AsRef<std::path::Path>) -> Vec<String> {
 
 pub trait StrintExt {
     fn snake_to_camel(&self) -> String;
+    fn camel_to_snake(&self) -> String;
 }
 
 impl StrintExt for String {
     fn snake_to_camel(&self) -> String {
         self[..].snake_to_camel()
+    }
+    fn camel_to_snake(&self) -> String {
+        self[..].camel_to_snake()
     }
 }
 
@@ -39,6 +43,18 @@ impl StrintExt for str {
             })
             .collect::<Vec<_>>()
             .join("")
+    }
+
+    fn camel_to_snake(&self) -> String {
+        self.chars()
+            .enumerate()
+            .map(|(i, c)| match i != 0 && c.is_uppercase() {
+                true => format!("_{c}"),
+                false => format!("{c}"),
+            })
+            .collect::<Vec<_>>()
+            .join("")
+            .to_lowercase()
     }
 }
 
@@ -135,7 +151,10 @@ pub fn generate_rust(in_path: &str, out_file: &str) -> anyhow::Result<()> {
         //
         code.push_str(&format!("pub enum {group_name} {{\n"));
         for (key, item) in &ret_items {
-            code.push_str(&format!("    {key}{},\n", item.to_enum_args()?));
+            code.push_str(&format!(
+                "    {key}{},\n",
+                item.to_enum_args(QuoteType::Brace)?
+            ));
         }
         code.push_str("}\n\n");
         //
@@ -169,7 +188,18 @@ pub fn generate_rust(in_path: &str, out_file: &str) -> anyhow::Result<()> {
             code.push_str("            }\n");
         }
         code.push_str("        }\n");
-        code.push_str("    }\n");
+        code.push_str("    }\n\n");
+        //
+        for (key, item) in &ret_items {
+            let snake_key = key.camel_to_snake();
+            code.push_str(&format!(
+                "    pub fn {snake_key}({}) -> {group_name} {{\n",
+                item.to_enum_args(QuoteType::None)?
+            ));
+            let sargs = item.to_enum_args_slim();
+            code.push_str(&format!("        {group_name}::{key}{sargs}\n"));
+            code.push_str("    }\n\n");
+        }
         code.push_str("}\n\n");
     }
     let mut file = std::fs::File::create(out_file)?;
@@ -178,12 +208,20 @@ pub fn generate_rust(in_path: &str, out_file: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+enum QuoteType {
+    None,
+    Brace,
+}
+
 impl I18nItem {
-    pub fn to_enum_args(&self) -> anyhow::Result<String> {
+    pub fn to_enum_args(&self, qtype: QuoteType) -> anyhow::Result<String> {
         if self.args.is_empty() {
             return Ok("".to_string());
         }
-        let mut ret = " {".to_string();
+        let mut ret = match qtype {
+            QuoteType::None => "".to_string(),
+            QuoteType::Brace => "{ ".to_string(),
+        };
         for (arg, atype) in &self.args {
             let atype = match &atype[..] {
                 "int" => "i64",
@@ -191,11 +229,14 @@ impl I18nItem {
                 "str" => "String",
                 _ => Err(anyhow!("unknown arg type: {atype}"))?,
             };
-            ret.push_str(&format!(" {arg}: {atype}, "));
+            ret.push_str(&format!("{arg}: {atype}, "));
         }
         ret.pop();
         ret.pop();
-        ret.push_str(" }");
+        ret.push_str(match qtype {
+            QuoteType::None => "",
+            QuoteType::Brace => " }",
+        });
         Ok(ret)
     }
 
