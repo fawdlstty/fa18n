@@ -2,6 +2,23 @@ use anyhow::anyhow;
 use regex::Regex;
 use std::{collections::HashMap, io::Write};
 
+#[derive(PartialEq)]
+pub enum ArgType {
+    Int,
+    Float,
+    Str,
+}
+
+enum QuoteType {
+    None,
+    Brace,
+}
+
+pub struct I18nItem {
+    pub content: HashMap<String, String>,
+    pub args: HashMap<String, ArgType>,
+}
+
 fn get_subfiles(path: impl AsRef<std::path::Path>) -> Vec<String> {
     let mut subfolders = vec![];
     if let Ok(mut entries) = std::fs::read_dir(path) {
@@ -58,22 +75,17 @@ impl StrintExt for str {
     }
 }
 
-pub struct I18nItem {
-    pub content: HashMap<String, String>,
-    pub args: HashMap<String, String>,
-}
-
 impl I18nItem {
-    fn parse_args(content: &str) -> HashMap<String, String> {
+    fn parse_args(content: &str) -> anyhow::Result<HashMap<String, ArgType>> {
         let mut args = HashMap::new();
         // {key:type}
-        let re = Regex::new(r"\{([^}:]+):([^}]+)\}").unwrap();
+        let re = Regex::new(r"\{([^}:]+):([^}]+)\}")?;
         for cap in re.captures_iter(content) {
             let key = cap[1].to_string();
-            let value = cap[2].to_string();
+            let value = ArgType::from_str(&cap[2])?;
             args.insert(key, value);
         }
-        args
+        Ok(args)
     }
 
     pub fn new() -> Self {
@@ -83,7 +95,7 @@ impl I18nItem {
     }
 
     pub fn apply(&mut self, locale: String, content: String) -> anyhow::Result<()> {
-        let args = Self::parse_args(&content);
+        let args = Self::parse_args(&content)?;
         if self.content.is_empty() {
             self.args = args;
         } else {
@@ -177,7 +189,7 @@ pub fn generate_rust(in_path: &str, out_file: &str) -> anyhow::Result<()> {
                         let mut new_content = content.clone();
                         for (key, value) in &item.args {
                             new_content = new_content
-                                .replace(&format!("{{{key}:{value}}}"), &format!("{{{key}}}"));
+                                .replace(&format!("{{{key}:{}}}", value.to_raw_str()), &format!("{{{key}}}"));
                         }
                         code.push_str(&format!(
                             "                {group_name}Locale::{locale} => format!(\"{new_content}\"),\n"
@@ -208,13 +220,35 @@ pub fn generate_rust(in_path: &str, out_file: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-enum QuoteType {
-    None,
-    Brace,
+impl ArgType {
+    fn to_type_str(&self) -> &str {
+        match self {
+            ArgType::Int => "i64",
+            ArgType::Float => "f64",
+            ArgType::Str => "String",
+        }
+    }
+
+    fn to_raw_str(&self) -> &str {
+        match self {
+            ArgType::Int => "int",
+            ArgType::Float => "float",
+            ArgType::Str => "str",
+        }
+    }
+
+    fn from_str(s: &str) -> anyhow::Result<Self> {
+        Ok(match s {
+            "int" => ArgType::Int,
+            "float" => ArgType::Float,
+            "str" => ArgType::Str,
+            _ => Err(anyhow!("unknown arg type: {s}"))?,
+        })
+    }
 }
 
 impl I18nItem {
-    pub fn to_enum_args(&self, qtype: QuoteType) -> anyhow::Result<String> {
+    fn to_enum_args(&self, qtype: QuoteType) -> anyhow::Result<String> {
         if self.args.is_empty() {
             return Ok("".to_string());
         }
@@ -223,13 +257,7 @@ impl I18nItem {
             QuoteType::Brace => "{ ".to_string(),
         };
         for (arg, atype) in &self.args {
-            let atype = match &atype[..] {
-                "int" => "i64",
-                "float" => "f64",
-                "str" => "String",
-                _ => Err(anyhow!("unknown arg type: {atype}"))?,
-            };
-            ret.push_str(&format!("{arg}: {atype}, "));
+            ret.push_str(&format!("{arg}: {}, ", atype.to_type_str()));
         }
         ret.pop();
         ret.pop();
